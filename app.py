@@ -1,39 +1,57 @@
-# Importing Libraries
+#================================================================Bibliotecas================================================================#
+# => Leitura de Câmera e Modelos
+import cv2
+from keras.models import load_model
+# => OpenSource de Tracking
+from cvzone.HandTrackingModule import HandDetector
+# => Bult-in Cálculos
 import numpy as np
 import math
-import cv2
+# => Controlar criação de pasta e acesso dos arquivos
 import os, sys
-import traceback
+# => Text-to-speech (Offline e Online)
 import pyttsx3
-from keras.models import load_model
-from cvzone.HandTrackingModule import HandDetector
 from string import ascii_uppercase
+# => Corretor com sugestões
 import enchant
-#Change the language of your pc to english-united-state
-# or you can use enchant.get_default_language()
-ddd=enchant.Dict("en-US")
-hd = HandDetector(maxHands=1)
-hd2 = HandDetector(maxHands=1)
+# => Coleta Erros de Execução e Mostra no Console
+import traceback
+# => UI do Projeto
 import tkinter as tk
+# PIL = Pillow => Controle de imagens (salvar, carregar etc...)
 from PIL import Image, ImageTk
+
+#================================================================Fim================================================================#
+
+# Baixe os arquivos e extraia em: 'Shell10\Lib\site-packages\enchant\data\mingw64\share\enchant\hunspell'
+ddd = enchant.Dict("pt-BR")
+
+# => Leitura das mãos - #MANTER
+hd = HandDetector(maxHands=2)
+hd2 = HandDetector(maxHands=2)
 
 offset=29
 
+# => Obriga o uso da GPU;
 os.environ["THEANO_FLAGS"] = "device=cuda, assert_no_cpu_op=True"
-
-
-# Application :
 
 class Application:
 
     def __init__(self):
-        self.vs = cv2.VideoCapture(1)
+        self.vs = cv2.VideoCapture(0) #Alterar o número para a câmera
         self.current_image = None
         self.model = load_model('./firstmodel.h5')
-        self.speak_engine=pyttsx3.init()
-        self.speak_engine.setProperty("rate",100)
-        voices=self.speak_engine.getProperty("voices")
-        self.speak_engine.setProperty("voice",voices[0].id)
+        print("Modelo Carregado")
+
+        #Objeto de Voz (self.voz é nossa variável)
+        self.voz = pyttsx3.init()
+        #Rate da Fala
+        self.voz.setProperty("rate",150)
+        vozes = self.voz.getProperty("voices")
+
+        #voice.setProperty('gender', 'female') => Força o gênero da voz (tornar isso uma opção no programa)
+        #self.voz.setProperty("voice",voices[0].id) => Seta através do id '[0]' qual voz
+        self.voz.setProperty("voice",vozes[0].id)
 
         self.ct = {}
         self.ct['blank'] = 0
@@ -50,47 +68,46 @@ class Application:
         for i in ascii_uppercase:
             self.ct[i] = 0
 
-        print("Loaded model from disk")
-
         self.root = tk.Tk()
-        self.root.title("Sign Language To Text Conversion")
+        self.root.title("Conversor de LIBRAS - Grupo Urso")
         self.root.protocol('WM_DELETE_WINDOW', self.destructor)
-        self.root.geometry("1300x700")
-
+        self.root.geometry("1920x1080")
+        
+        # Painel onde a câmera fica
         self.panel = tk.Label(self.root)
         self.panel.place(x=40, y=3, width=480, height=640)
 
-        self.panel2 = tk.Label(self.root)  # initialize image panel
+        self.panel2 = tk.Label(self.root) 
         self.panel2.place(x=550, y=115, width=400, height=400)
 
         self.T = tk.Label(self.root)
-        self.T.place(x=60, y=5)
-        self.T.config(text="Sign Language To Text Conversion", font=("Times New Roman", 30, "bold"))
+        self.T.place(x=800, y=5)
+        self.T.config(text="Conversor de LIBRAS", font=("Times New Roman", 30, "bold"))
 
-        image1 = Image.open("alfabeto-libras.png")
+        image1 = Image.open("alfabeto-libras.jpg")
         image1= image1.resize((500,400))
         test = ImageTk.PhotoImage(image1)
         label1 = tk.Label(image=test)
         label1.image = test
         label1.place(x=1000,y=110)
 
-        self.panel3 = tk.Label(self.root)  # Current Symbol
+        self.panel3 = tk.Label(self.root)  # Símbolo Atual
         self.panel3.place(x=280, y=585)
 
         self.T1 = tk.Label(self.root)
         self.T1.place(x=10, y=580)
-        self.T1.config(text="Character :", font=("Times New Roman", 30, "bold"))
+        self.T1.config(text="LETRA :", fg="blue", font=("Times New Roman", 30, "bold"))
 
-        self.panel5 = tk.Label(self.root)  # Sentence
+        self.panel5 = tk.Label(self.root)  # Frase
         self.panel5.place(x=260, y=632)
 
         self.T3 = tk.Label(self.root)
         self.T3.place(x=10, y=632)
-        self.T3.config(text="Sentence :", font=("Times New Roman", 30, "bold"))
+        self.T3.config(text="FRASE :", fg="blue", font=("Times New Roman", 30, "bold"))
 
         self.T4 = tk.Label(self.root)
         self.T4.place(x=10, y=700)
-        self.T4.config(text="Suggestions :", fg="red", font=("Times New Roman", 30, "bold"))
+        self.T4.config(text="SUGESTÕES :", fg="blue", font=("Times New Roman", 30, "bold"))
 
 
         self.b1=tk.Button(self.root)
@@ -106,14 +123,22 @@ class Application:
         self.b4.place(x=990, y=700)
 
         self.speak = tk.Button(self.root)
-        self.speak.place(x=1305, y=630)
-        self.speak.config(text="Speak", font=("Times New Roman", 20), wraplength=100, command=self.speak_fun)
+        self.speak.place(x=1100, y=630)
+        self.speak.config(text="Falar", font=("Times New Roman", 20), wraplength=100, command=self.speak_fun)
 
         self.clear = tk.Button(self.root)
-        self.clear.place(x=1205, y=630)
-        self.clear.config(text="Clear", font=("Times New Roman", 20), wraplength=100, command=self.clear_fun)
+        self.clear.place(x=1200, y=630)
+        self.clear.config(text="Limpar", font=("Times New Roman", 20), wraplength=100, command=self.clear_fun)
 
+        #Botão de Temas
 
+        self.dark_theme_button = tk.Button(self.root)
+        self.dark_theme_button.place(x=1100, y=500)
+        self.dark_theme_button.config(text="Tema Escuro", font=("Times New Roman", 20), wraplength=100, command=self.dark_theme)
+
+        self.light_theme_button = tk.Button(self.root)
+        self.light_theme_button.place(x=1200, y=500)
+        self.light_theme_button.config(text="Tema Claro", font=("Times New Roman", 20), wraplength=100, command=self.light_theme)
 
 
 
@@ -131,6 +156,47 @@ class Application:
 
         self.video_loop()
 
+
+
+    def dark_theme(self):
+
+        # Background da tela
+        self.root.configure(bg="#24283B")
+
+        widgets = [self.root, self.panel, self.panel2, self.panel3, self.panel5, self.T,
+        self.b1, self.b2, self.b3, self.b4, self.speak, self.clear]
+        for widget in widgets:
+            widget.config(bg='#24283B')
+
+        # Background e Cor da Fonte dos Botões
+        buttons = [self.T1, self.T3, self.T4]
+        for button in buttons:
+            button.config(bg='#24283B', fg='red')
+            
+
+        # Background dos botões
+        self.speak.config(activebackground="#444444")
+        self.clear.config(activebackground="#444444")
+
+    def light_theme(self):
+
+        # Background da tela
+        self.root.configure(bg="#E9E9E9")
+
+        widgets = [self.root, self.panel, self.panel2, self.panel3, self.panel5, self.T,
+        self.b1, self.b2, self.b3, self.b4, self.speak, self.clear]
+        for widget in widgets:
+            widget.config(bg='#E9E9E9')
+
+        buttons = [self.T1, self.T3, self.T4]
+        for button in buttons:
+            button.config(bg='#E9E9E9', fg='blue')
+            
+
+        # Background dos botões
+        self.speak.config(activebackground="#FFF")
+        self.clear.config(activebackground="#FFF")
+
     def video_loop(self):
         try:
             ok, frame = self.vs.read()
@@ -144,13 +210,11 @@ class Application:
             self.panel.config(image=imgtk)
 
             if hands:
-                # #print(" --------- lmlist=",hands[1])
                 hand = hands[0]
                 x, y, w, h = hand['bbox']
                 image = cv2image_copy[y - offset:y + h + offset, x - offset:x + w + offset]
 
                 white = cv2.imread("./white-background.jpg")
-                # img_final=img_final1=img_final2=0
 
                 handz = hd2.findHands(image, draw=False, flipType=True)
                 print(" ", self.ccc)
@@ -255,8 +319,8 @@ class Application:
 
 
     def speak_fun(self):
-        self.speak_engine.say(self.str)
-        self.speak_engine.runAndWait()
+        self.voz.say(self.str)
+        self.voz.runAndWait()
 
 
     def clear_fun(self):
@@ -266,10 +330,12 @@ class Application:
         self.word3 = " "
         self.word4 = " "
 
-    def predict(self, test_image):
-        white=test_image
+    def predict(self, image):
+        white = image
         white = white.reshape(1, 400, 400, 3)
         prob = np.array(self.model.predict(white)[0], dtype='float32')
+
+        # Softmax => Pega os pontos mais altos da função e absorve ela nos channels.
         ch1 = np.argmax(prob, axis=0)
         prob[ch1] = 0
         ch2 = np.argmax(prob, axis=0)
@@ -287,15 +353,12 @@ class Application:
             if (self.pts[6][1] < self.pts[8][1] and self.pts[10][1] < self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and self.pts[18][1] < self.pts[20][
                 1]):
                 ch1 = 0
-                # print("00000")
 
         # condition for [o][s]
         l = [[2, 2], [2, 1]]
         if pl in l:
             if (self.pts[5][0] < self.pts[4][0]):
                 ch1 = 0
-                print("++++++++++++++++++")
-                # print("00000")
 
         # condition for [c0][aemnst]
         l = [[0, 0], [0, 6], [0, 2], [0, 5], [0, 1], [0, 7], [5, 2], [7, 6], [7, 1]]
@@ -304,7 +367,6 @@ class Application:
             if (self.pts[0][0] > self.pts[8][0] and self.pts[0][0] > self.pts[4][0] and self.pts[0][0] > self.pts[12][0] and self.pts[0][0] > self.pts[16][
                 0] and self.pts[0][0] > self.pts[20][0]) and self.pts[5][0] > self.pts[4][0]:
                 ch1 = 2
-                # print("22222")
 
         # condition for [c0][aemnst]
         l = [[6, 0], [6, 6], [6, 2]]
@@ -312,7 +374,6 @@ class Application:
         if pl in l:
             if self.distance(self.pts[8], self.pts[16]) < 52:
                 ch1 = 2
-                # print("22222")
 
 
         # condition for [gh][bdfikruvw]
@@ -323,8 +384,6 @@ class Application:
             if self.pts[6][1] > self.pts[8][1] and self.pts[14][1] < self.pts[16][1] and self.pts[18][1] < self.pts[20][1] and self.pts[0][0] < self.pts[8][
                 0] and self.pts[0][0] < self.pts[12][0] and self.pts[0][0] < self.pts[16][0] and self.pts[0][0] < self.pts[20][0]:
                 ch1 = 3
-                print("33333c")
-
 
 
         # con for [gh][l]
@@ -333,7 +392,7 @@ class Application:
         if pl in l:
             if self.pts[4][0] > self.pts[0][0]:
                 ch1 = 3
-                print("33333b")
+
 
         # con for [gh][pqz]
         l = [[5, 3], [5, 0], [5, 7], [5, 4], [5, 2], [5, 1], [5, 5]]
@@ -341,7 +400,7 @@ class Application:
         if pl in l:
             if self.pts[2][1] + 15 < self.pts[16][1]:
                 ch1 = 3
-                print("33333a")
+
 
         # con for [l][x]
         l = [[6, 4], [6, 1], [6, 2]]
@@ -349,7 +408,7 @@ class Application:
         if pl in l:
             if self.distance(self.pts[4], self.pts[11]) > 55:
                 ch1 = 4
-                # print("44444")
+
 
         # con for [l][d]
         l = [[1, 4], [1, 6], [1, 1]]
@@ -359,7 +418,7 @@ class Application:
                     self.pts[6][1] > self.pts[8][1] and self.pts[10][1] < self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and self.pts[18][1] <
                     self.pts[20][1]):
                 ch1 = 4
-                # print("44444")
+
 
         # con for [l][gh]
         l = [[3, 6], [3, 4]]
@@ -367,7 +426,7 @@ class Application:
         if pl in l:
             if (self.pts[4][0] < self.pts[0][0]):
                 ch1 = 4
-                # print("44444")
+
 
         # con for [l][c0]
         l = [[2, 2], [2, 5], [2, 4]]
@@ -375,7 +434,7 @@ class Application:
         if pl in l:
             if (self.pts[1][0] < self.pts[12][0]):
                 ch1 = 4
-                # print("44444")
+
 
         # con for [l][c0]
         l = [[2, 2], [2, 5], [2, 4]]
@@ -383,7 +442,7 @@ class Application:
         if pl in l:
             if (self.pts[1][0] < self.pts[12][0]):
                 ch1 = 4
-                # print("44444")
+
 
         # con for [gh][z]
         l = [[3, 6], [3, 5], [3, 4]]
@@ -392,7 +451,7 @@ class Application:
             if (self.pts[6][1] > self.pts[8][1] and self.pts[10][1] < self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and self.pts[18][1] < self.pts[20][
                 1]) and self.pts[4][1] > self.pts[10][1]:
                 ch1 = 5
-                print("55555b")
+
 
         # con for [gh][pq]
         l = [[3, 2], [3, 1], [3, 6]]
@@ -401,7 +460,7 @@ class Application:
             if self.pts[4][1] + 17 > self.pts[8][1] and self.pts[4][1] + 17 > self.pts[12][1] and self.pts[4][1] + 17 > self.pts[16][1] and self.pts[4][
                 1] + 17 > self.pts[20][1]:
                 ch1 = 5
-                print("55555a")
+
 
         # con for [l][pqz]
         l = [[4, 4], [4, 5], [4, 2], [7, 5], [7, 6], [7, 0]]
@@ -409,7 +468,7 @@ class Application:
         if pl in l:
             if self.pts[4][0] > self.pts[0][0]:
                 ch1 = 5
-                # print("55555")
+
 
         # con for [pqz][aemnst]
         l = [[0, 2], [0, 6], [0, 1], [0, 5], [0, 0], [0, 7], [0, 4], [0, 3], [2, 7]]
@@ -417,7 +476,7 @@ class Application:
         if pl in l:
             if self.pts[0][0] < self.pts[8][0] and self.pts[0][0] < self.pts[12][0] and self.pts[0][0] < self.pts[16][0] and self.pts[0][0] < self.pts[20][0]:
                 ch1 = 5
-                # print("55555")
+
 
         # con for [pqz][yj]
         l = [[5, 7], [5, 2], [5, 6]]
@@ -425,7 +484,7 @@ class Application:
         if pl in l:
             if self.pts[3][0] < self.pts[0][0]:
                 ch1 = 7
-                # print("77777")
+
 
         # con for [l][yj]
         l = [[4, 6], [4, 2], [4, 4], [4, 1], [4, 5], [4, 7]]
@@ -433,7 +492,7 @@ class Application:
         if pl in l:
             if self.pts[6][1] < self.pts[8][1]:
                 ch1 = 7
-                # print("77777")
+
 
         # con for [x][yj]
         l = [[6, 7], [0, 7], [0, 1], [0, 0], [6, 4], [6, 6], [6, 5], [6, 1]]
@@ -441,7 +500,7 @@ class Application:
         if pl in l:
             if self.pts[18][1] > self.pts[20][1]:
                 ch1 = 7
-                # print("77777")
+
 
         # condition for [x][aemnst]
         l = [[0, 4], [0, 2], [0, 3], [0, 1], [0, 6]]
@@ -449,7 +508,7 @@ class Application:
         if pl in l:
             if self.pts[5][0] > self.pts[16][0]:
                 ch1 = 6
-                print("666661")
+
 
 
         # condition for [yj][x]
@@ -459,7 +518,7 @@ class Application:
         if pl in l:
             if self.pts[18][1] < self.pts[20][1] and self.pts[8][1] < self.pts[10][1]:
                 ch1 = 6
-                print("666662")
+
 
         # condition for [c0][x]
         l = [[2, 1], [2, 2], [2, 6], [2, 7], [2, 0]]
@@ -467,7 +526,7 @@ class Application:
         if pl in l:
             if self.distance(self.pts[8], self.pts[16]) > 50:
                 ch1 = 6
-                print("666663")
+
 
         # con for [l][x]
 
@@ -476,7 +535,7 @@ class Application:
         if pl in l:
             if self.distance(self.pts[4], self.pts[11]) < 60:
                 ch1 = 6
-                print("666664")
+
 
         # con for [x][d]
         l = [[1, 4], [1, 6], [1, 0], [1, 2]]
@@ -484,7 +543,7 @@ class Application:
         if pl in l:
             if self.pts[5][0] - self.pts[4][0] - 15 > 0:
                 ch1 = 6
-                print("666665")
+
 
         # con for [b][pqz]
         l = [[5, 0], [5, 1], [5, 4], [5, 5], [5, 6], [6, 1], [7, 6], [0, 2], [7, 1], [7, 4], [6, 6], [7, 2], [5, 0],
@@ -494,7 +553,7 @@ class Application:
             if (self.pts[6][1] > self.pts[8][1] and self.pts[10][1] > self.pts[12][1] and self.pts[14][1] > self.pts[16][1] and self.pts[18][1] > self.pts[20][
                 1]):
                 ch1 = 1
-                print("111111")
+
 
         # con for [f][pqz]
         l = [[6, 1], [6, 0], [0, 3], [6, 4], [2, 2], [0, 6], [6, 2], [7, 6], [4, 6], [4, 1], [4, 2], [0, 2], [7, 1],
@@ -504,7 +563,7 @@ class Application:
             if (self.pts[6][1] < self.pts[8][1] and self.pts[10][1] > self.pts[12][1] and self.pts[14][1] > self.pts[16][1] and
                     self.pts[18][1] > self.pts[20][1]):
                 ch1 = 1
-                print("111112")
+
 
         l = [[6, 1], [6, 0], [4, 2], [4, 1], [4, 6], [4, 4]]
         pl = [ch1, ch2]
@@ -512,7 +571,7 @@ class Application:
             if (self.pts[10][1] > self.pts[12][1] and self.pts[14][1] > self.pts[16][1] and
                     self.pts[18][1] > self.pts[20][1]):
                 ch1 = 1
-                print("111112")
+
 
         # con for [d][pqz]
         fg = 19
@@ -523,7 +582,7 @@ class Application:
             if ((self.pts[6][1] > self.pts[8][1] and self.pts[10][1] < self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and
                  self.pts[18][1] < self.pts[20][1]) and (self.pts[2][0] < self.pts[0][0]) and self.pts[4][1] > self.pts[14][1]):
                 ch1 = 1
-                print("111113")
+
 
         l = [[4, 1], [4, 2], [4, 4]]
         pl = [ch1, ch2]
@@ -540,14 +599,12 @@ class Application:
             if ((self.pts[6][1] > self.pts[8][1] and self.pts[10][1] < self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and
                  self.pts[18][1] < self.pts[20][1]) and (self.pts[2][0] < self.pts[0][0]) and self.pts[14][1] < self.pts[4][1]):
                 ch1 = 1
-                print("1111mmm3")
 
         l = [[6, 6], [6, 4], [6, 1], [6, 2]]
         pl = [ch1, ch2]
         if pl in l:
             if self.pts[5][0] - self.pts[4][0] - 15 < 0:
                 ch1 = 1
-                print("1111140")
 
         # con for [i][pqz]
         l = [[5, 4], [5, 5], [5, 1], [0, 3], [0, 7], [5, 0], [0, 2], [6, 2], [7, 5], [7, 1], [7, 6], [7, 7]]
@@ -556,7 +613,6 @@ class Application:
             if ((self.pts[6][1] < self.pts[8][1] and self.pts[10][1] < self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and
                  self.pts[18][1] > self.pts[20][1])):
                 ch1 = 1
-                print("111114")
 
         # con for [yj][bfdi]
         l = [[1, 5], [1, 7], [1, 1], [1, 6], [1, 3], [1, 0]]
@@ -566,7 +622,6 @@ class Application:
             (self.pts[6][1] < self.pts[8][1] and self.pts[10][1] < self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and
              self.pts[18][1] > self.pts[20][1])):
                 ch1 = 7
-                print("111114lll;;p")
 
         # con for [uvr]
         l = [[5, 5], [5, 0], [5, 4], [5, 1], [4, 6], [4, 1], [7, 6], [3, 0], [3, 5]]
@@ -575,7 +630,6 @@ class Application:
             if ((self.pts[6][1] > self.pts[8][1] and self.pts[10][1] > self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and
                  self.pts[18][1] < self.pts[20][1])) and self.pts[4][1] > self.pts[14][1]:
                 ch1 = 1
-                print("111115")
 
         # con for [w]
         fg = 13
@@ -587,7 +641,6 @@ class Application:
                     self.pts[0][0] > self.pts[8][0] and self.pts[0][0] > self.pts[12][0] and self.pts[0][0] > self.pts[16][0] and self.pts[0][0] > self.pts[20][
                 0]) and self.distance(self.pts[4], self.pts[11]) < 50:
                 ch1 = 1
-                print("111116")
 
         # con for [w]
 
@@ -596,7 +649,6 @@ class Application:
         if pl in l:
             if self.pts[6][1] > self.pts[8][1] and self.pts[10][1] > self.pts[12][1] and self.pts[14][1] > self.pts[16][1]:
                 ch1 = 1
-                print("1117")
 
         # -------------------------condn for 8 groups  ends
 
@@ -749,13 +801,13 @@ class Application:
 
     def destructor(self):
 
-        print("Closing Application...")
+        print("Fechando...")
         print(self.ten_prev_char)
         self.root.destroy()
         self.vs.release()
         cv2.destroyAllWindows()
 
 
-print("Starting Application...")
+print("Iniciando...")
 
 (Application()).root.mainloop()
