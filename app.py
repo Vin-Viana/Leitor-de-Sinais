@@ -20,6 +20,8 @@ import traceback
 import tkinter as tk
 # PIL = Pillow => Controle de imagens (salvar, carregar etc...)
 from PIL import Image, ImageTk
+# => Coleta das ações realizadas pelo teclado
+import keyboard
 
 #================================================================Fim================================================================#
 
@@ -27,18 +29,19 @@ from PIL import Image, ImageTk
 ddd = enchant.Dict("pt-BR")
 
 # => Leitura das mãos - #MANTER
-hd = HandDetector(maxHands=2)
-hd2 = HandDetector(maxHands=2)
+hd = HandDetector(maxHands=1)
+hd2 = HandDetector(maxHands=1)
 
 offset=29
 
 # => Obriga o uso da GPU;
-os.environ["THEANO_FLAGS"] = "device=cuda, assert_no_cpu_op=True"
+#os.environ["THEANO_FLAGS"] = "device=cuda, assert_no_cpu_op=True"
 
 class Application:
 
     def __init__(self):
-        self.vs = cv2.VideoCapture(0) #Alterar o número para a câmera
+        self.a=-0
+        self.vs = cv2.VideoCapture(self.a) #Alterar o número para a câmera
         self.current_image = None
         self.model = load_model('./firstmodel.h5')
         print("Modelo Carregado")
@@ -82,10 +85,10 @@ class Application:
 
         self.T = tk.Label(self.root)
         self.T.place(x=800, y=5)
-        self.T.config(text="Conversor de LIBRAS", font=("Times New Roman", 30, "bold"))
+        self.T.config(text="Conversor de LIBRAS", fg='blue', font=("Times New Roman", 30, "bold"))
 
         image1 = Image.open("alfabeto-libras.jpg")
-        image1= image1.resize((500,400))
+        image1= image1.resize((300,200))
         test = ImageTk.PhotoImage(image1)
         label1 = tk.Label(image=test)
         label1.image = test
@@ -124,22 +127,28 @@ class Application:
 
         self.speak = tk.Button(self.root)
         self.speak.place(x=1100, y=630)
-        self.speak.config(text="Falar", font=("Times New Roman", 20), wraplength=100, command=self.speak_fun)
+        self.speak.config(text="Falar", fg='blue', font=("Times New Roman", 20), wraplength=100, command=self.speak_fun)
 
         self.clear = tk.Button(self.root)
         self.clear.place(x=1200, y=630)
-        self.clear.config(text="Limpar", font=("Times New Roman", 20), wraplength=100, command=self.clear_fun)
+        self.clear.config(text="Limpar", fg='blue', font=("Times New Roman", 20), wraplength=100, command=self.clear_fun)
 
         #Botão de Temas
 
         self.dark_theme_button = tk.Button(self.root)
         self.dark_theme_button.place(x=1100, y=500)
-        self.dark_theme_button.config(text="Tema Escuro", font=("Times New Roman", 20), wraplength=100, command=self.dark_theme)
+        self.dark_theme_button.config(text="Tema Escuro",fg='blue', font=("Times New Roman", 20), wraplength=200, command=self.dark_theme)
 
         self.light_theme_button = tk.Button(self.root)
-        self.light_theme_button.place(x=1200, y=500)
-        self.light_theme_button.config(text="Tema Claro", font=("Times New Roman", 20), wraplength=100, command=self.light_theme)
-
+        self.light_theme_button.place(x=1300, y=500)
+        self.light_theme_button.config(text="Tema Claro",fg='blue', font=("Times New Roman", 20), wraplength=200, command=self.light_theme)
+        
+        #Troca câmeras
+        
+        self.Fcamera_button = tk.Button(self.root)
+        self.Fcamera_button.place(x=40, y=3)
+        self.Fcamera_button.config(text="Ligar câmera",fg='blue', font=("Times New Roman", 20), wraplength=200, command=self.Fcamera)
+        
 
 
         self.str = " "
@@ -155,25 +164,27 @@ class Application:
         self.word4 = " "
 
         self.video_loop()
-
-
+        
 
     def dark_theme(self):
 
         # Background da tela
         self.root.configure(bg="#24283B")
+        self.T.config(fg='red')
 
-        widgets = [self.root, self.panel, self.panel2, self.panel3, self.panel5, self.T,
-        self.b1, self.b2, self.b3, self.b4, self.speak, self.clear]
+        widgets = [self.root, self.panel, self.panel2, self.panel3, self.panel5, self.T,]
         for widget in widgets:
             widget.config(bg='#24283B')
 
         # Background e Cor da Fonte dos Botões
+        buttons = [self.b1, self.b2, self.b3, self.b4, self.speak, self.clear, self.dark_theme_button, self.light_theme_button, self.Fcamera_button]
+        for button in buttons:
+            button.config(bg='#000000', fg='red')
+            
         buttons = [self.T1, self.T3, self.T4]
         for button in buttons:
             button.config(bg='#24283B', fg='red')
             
-
         # Background dos botões
         self.speak.config(activebackground="#444444")
         self.clear.config(activebackground="#444444")
@@ -182,9 +193,10 @@ class Application:
 
         # Background da tela
         self.root.configure(bg="#E9E9E9")
+        self.T.config(fg='blue')
 
         widgets = [self.root, self.panel, self.panel2, self.panel3, self.panel5, self.T,
-        self.b1, self.b2, self.b3, self.b4, self.speak, self.clear]
+        self.b1, self.b2, self.b3, self.b4, self.speak, self.clear, self.dark_theme_button, self.light_theme_button, self.Fcamera_button]
         for widget in widgets:
             widget.config(bg='#E9E9E9')
 
@@ -196,6 +208,14 @@ class Application:
         # Background dos botões
         self.speak.config(activebackground="#FFF")
         self.clear.config(activebackground="#FFF")
+
+    def Fcamera(self):
+        self.a+=1
+        if self.a > 10:
+            self.a=0
+        print(" ", self.a)
+        self.vs = cv2.VideoCapture(self.a)
+        self.current_image = None
 
     def video_loop(self):
         try:
@@ -222,8 +242,6 @@ class Application:
                 if handz:
                     hand = handz[0]
                     self.pts = hand['lmList']
-                    # x1,y1,w1,h1=hand['bbox']
-
                     os = ((400 - w) // 2) - 15
                     os1 = ((400 - h) // 2) - 15
                     for t in range(0, 4, 1):
@@ -265,7 +283,7 @@ class Application:
                     self.panel2.imgtk = imgtk
                     self.panel2.config(image=imgtk)
 
-                    self.panel3.config(text=self.current_symbol, font=("Times New Roman", 30))
+                    self.panel3.config(text=self.current_symbol,fg='#02e302', font=("Times New Roman", 30))
 
                     #self.panel4.config(text=self.word, font=("Times New Roman", 30))
 
@@ -278,7 +296,10 @@ class Application:
 
             self.panel5.config(text=self.str, font=("Times New Roman", 30), wraplength=1025)
         except Exception:
-            print("==", traceback.format_exc())
+            print("ERRO TÉCNICO:", traceback.format_exc())
+            print("ERRO SIMPLIFICADO: Mãos não localizadas ou Câmera indisponível")
+            self.Fcamera()
+                
         finally:
             self.root.after(1, self.video_loop)
 
@@ -512,7 +533,6 @@ class Application:
 
 
         # condition for [yj][x]
-        print("2222  ch1=+++++++++++++++++", ch1, ",", ch2)
         l = [[7, 2]]
         pl = [ch1, ch2]
         if pl in l:
@@ -575,7 +595,6 @@ class Application:
 
         # con for [d][pqz]
         fg = 19
-        # print("_________________ch1=",ch1," ch2=",ch2)
         l = [[5, 0], [3, 4], [3, 0], [3, 1], [3, 5], [5, 5], [5, 4], [5, 1], [7, 6]]
         pl = [ch1, ch2]
         if pl in l:
@@ -672,7 +691,7 @@ class Application:
             if self.distance(self.pts[12], self.pts[4]) > 42:
                 ch1 = 'C'
             else:
-                ch1 = 'O'
+                ch1 = 'O'          
 
         if ch1 == 3:
             if (self.distance(self.pts[8], self.pts[12])) > 72:
@@ -737,22 +756,15 @@ class Application:
         if ch1 == 1 or ch1 =='E' or ch1 =='S' or ch1 =='X' or ch1 =='Y' or ch1 =='B':
             if (self.pts[6][1] > self.pts[8][1] and self.pts[10][1] < self.pts[12][1] and self.pts[14][1] < self.pts[16][1] and self.pts[18][1] > self.pts[20][1]):
                 ch1=" "
+                
+        if keyboard.is_pressed("space"):
+            ch1="Next"
+        if keyboard.is_pressed("backspace"):
+            ch1="Backspace"
 
 
-
-        print(self.pts[4][0] < self.pts[5][0])
-        if ch1 == 'E' or ch1=='Y' or ch1=='B':
-            if (self.pts[4][0] < self.pts[5][0]) and (self.pts[6][1] > self.pts[8][1] and self.pts[10][1] > self.pts[12][1] and self.pts[14][1] > self.pts[16][1] and self.pts[18][1] > self.pts[20][1]):
-                ch1="next"
-
-
-        if ch1 == 'Next' or 'B' or 'C' or 'H' or 'F' or 'X':
-            if (self.pts[0][0] > self.pts[8][0] and self.pts[0][0] > self.pts[12][0] and self.pts[0][0] > self.pts[16][0] and self.pts[0][0] > self.pts[20][0]) and (self.pts[4][1] < self.pts[8][1] and self.pts[4][1] < self.pts[12][1] and self.pts[4][1] < self.pts[16][1] and self.pts[4][1] < self.pts[20][1]) and (self.pts[4][1] < self.pts[6][1] and self.pts[4][1] < self.pts[10][1] and self.pts[4][1] < self.pts[14][1] and self.pts[4][1] < self.pts[18][1]):
-                ch1 = 'Backspace'
-
-
-        if ch1=="next" and self.prev_char!="next":
-            if self.ten_prev_char[(self.count-2)%10]!="next":
+        if ch1=="Next" and self.prev_char!="Next":
+            if self.ten_prev_char[(self.count-2)%10]!="Next":
                 if self.ten_prev_char[(self.count-2)%10]=="Backspace":
                     self.str=self.str[0:-1]
                 else:
@@ -765,7 +777,7 @@ class Application:
 
         if ch1=="  " and self.prev_char!="  ":
             self.str = self.str + "  "
-
+    
         self.prev_char=ch1
         self.current_symbol=ch1
         self.count += 1
@@ -777,15 +789,15 @@ class Application:
             ed=len(self.str)
             word=self.str[st+1:ed]
             self.word=word
-            print("----------word = ",word)
+            print("----------palavra = ",word)
             if len(word.strip())!=0:
                 ddd.check(word)
                 lenn = len(ddd.suggest(word))
                 if lenn >= 4:
-                    self.word4 = ddd.suggest(word)[3]
+                    self.word4 = ddd.suggest(word)[6]
 
                 if lenn >= 3:
-                    self.word3 = ddd.suggest(word)[2]
+                    self.word3 = ddd.suggest(word)[4]
 
                 if lenn >= 2:
                     self.word2 = ddd.suggest(word)[1]
